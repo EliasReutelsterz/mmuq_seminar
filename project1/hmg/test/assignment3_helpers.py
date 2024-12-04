@@ -1,28 +1,4 @@
-# -*- coding: utf-8 -*-
-
-'''
-@author: Faizan-TU Munich
-
-Nov 27, 2024
-
-1:31:52 PM
-
-Description:
-
-Keywords:
-
-'''
-
 import os
-
-# Numpy sneakily uses multiple threads sometimes. I don't want that.
-os.environ['MKL_NUM_THREADS'] = '1'
-os.environ['NUMEXPR_NUM_THREADS'] = '1'
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['MPI_NUM_THREADS'] = '1'
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-
 import sys
 import time
 import timeit
