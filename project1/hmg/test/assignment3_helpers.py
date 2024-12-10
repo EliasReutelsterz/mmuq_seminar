@@ -80,7 +80,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
 
     dtyp = np.float64
 
-    mprg_pool_size = 8 #! 8 for my macbook
+    mprg_pool_size = 8 #! 8 for my macbook, 4 should be taken! 
     #==========================================================================
 
     if (sobl_smpl_size % mprg_pool_size):
@@ -114,6 +114,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     optn_args.modl_objt = modl_objt
     optn_args.take_idxs = np.isfinite(diso)
     optn_args.metric = metric
+    optn_args.length_ln_0_values = []
 
     modl_objt.set_optimization_flag(1)
     #==========================================================================
@@ -159,7 +160,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     #==========================================================================
 
     A = np.full((sobl_smpl_size, prms_cont), np.nan, dtype=dtyp)
-    y_A = np.full(sobl_smpl_size, np.nan, dtype=dtyp)
+    f_A = np.full(sobl_smpl_size, np.nan, dtype=dtyp)
 
     fill_sobl_mtrx(
         A,
@@ -171,7 +172,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     fill_ofvs_arry(
         ques,
         A,
-        y_A,
+        f_A,
         mprg_pool_size,
         sobl_smpl_size)
 
@@ -180,7 +181,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     #==========================================================================
 
     B = np.full((sobl_smpl_size, prms_cont), np.nan, dtype=dtyp)
-    y_B = np.full(sobl_smpl_size, np.nan, dtype=dtyp)
+    f_B = np.full(sobl_smpl_size, np.nan, dtype=dtyp)
 
     fill_sobl_mtrx(
         B,
@@ -192,7 +193,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     fill_ofvs_arry(
         ques,
         B,
-        y_B,
+        f_B,
         mprg_pool_size,
         sobl_smpl_size)
 
@@ -200,7 +201,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     # Sobol f0^2.
     #==========================================================================
     
-    f_0_squared = np.mean(y_A) * np.mean(y_B)
+    f_0_squared = np.mean(f_A) * np.mean(f_B)
 
     #==========================================================================
     # Sobol Matrices Cs (right) computations.
@@ -210,25 +211,25 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     stis = np.full(prms_cont, np.nan, dtype=dtyp)
 
     for i in range(prms_cont):
-        C_i = np.zeros((sobl_smpl_size, prms_cont))
+        A_B_i = np.zeros((sobl_smpl_size, prms_cont))
         for param_index in range(prms_cont):
             if param_index == i:
-                C_i[:, param_index] = A[:, param_index]
+                A_B_i[:, param_index] = B[:, param_index]
             else:
-                C_i[:, param_index] = B[:, param_index]
+                A_B_i[:, param_index] = A[:, param_index]
         
-        y_C_i = np.full(sobl_smpl_size, np.nan, dtype=dtyp)
+        f_A_B_i = np.full(sobl_smpl_size, np.nan, dtype=dtyp)
         fill_ofvs_arry(
         ques,
-        C_i,
-        y_C_i,
+        A_B_i,
+        f_A_B_i,
         mprg_pool_size,
         sobl_smpl_size)
         
-        
-        denominator = 1/sobl_smpl_size * np.sum([y_A[j]**2 for j in range(sobl_smpl_size)]) - f_0_squared
-        ssis[i] = (1/sobl_smpl_size * np.sum([y_A[j] * y_C_i[j] for j in range(sobl_smpl_size)]) - f_0_squared) / denominator
-        stis[i] = 1 - ((1/sobl_smpl_size * np.sum([y_B[j] * y_C_i[j] for j in range(sobl_smpl_size)]) - f_0_squared) / denominator)
+
+        denominator = 1/sobl_smpl_size * np.sum([f_A[j]**2 for j in range(sobl_smpl_size)]) - f_0_squared
+        ssis[i] = (1/sobl_smpl_size * np.sum([f_B[j] * (f_A_B_i[j] - f_A[j]) for j in range(sobl_smpl_size)])) / denominator
+        stis[i] = 1 - ((1/sobl_smpl_size * np.sum([f_A[j] * (f_A[j] - f_A_B_i[j]) for j in range(sobl_smpl_size)])) / denominator)
 
     print('S:')
     print([f'{sis:.2E}' for sis in ssis])
@@ -303,6 +304,9 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     plt.savefig(sobl_figr_name, bbox_inches='tight')
 
     plt.close(figr)
+
+    print(f"optn_args.length_ln_0_values: {optn_args.length_ln_0_values}")
+
     return
 
 opt_prms = np.array([6.70180268e-01,
@@ -434,7 +438,8 @@ def LnNSE(sim_dis, obs_dis):
     ln_sim_dis = np.log(sim_dis)
     ln_obs_dis = np.log(obs_dis)
     mean_ln_obs_dis = np.mean(ln_obs_dis)
-    return 1 - (np.sum((ln_obs_dis - ln_sim_dis) ** 2)) / (np.sum((ln_obs_dis - mean_ln_obs_dis) ** 2))
+    LnNSE_value = 1 - (np.sum((ln_obs_dis - ln_sim_dis) ** 2)) / (np.sum((ln_obs_dis - mean_ln_obs_dis) ** 2))
+    return LnNSE_value
 
 def get_objv_fntn_vlue(prms, args):
 
