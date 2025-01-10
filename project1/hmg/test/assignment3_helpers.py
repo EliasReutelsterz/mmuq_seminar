@@ -18,7 +18,6 @@ DEBUG_FLAG = False
 
 # Some monospaced font for plots.
 plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Consolas']
 
 
 def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
@@ -114,7 +113,6 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     optn_args.modl_objt = modl_objt
     optn_args.take_idxs = np.isfinite(diso)
     optn_args.metric = metric
-    optn_args.length_ln_0_values = []
 
     modl_objt.set_optimization_flag(1)
     #==========================================================================
@@ -229,7 +227,7 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
 
         denominator = 1/sobl_smpl_size * np.sum([f_A[j]**2 for j in range(sobl_smpl_size)]) - f_0_squared
         ssis[i] = (1/sobl_smpl_size * np.sum([f_B[j] * (f_A_B_i[j] - f_A[j]) for j in range(sobl_smpl_size)])) / denominator
-        stis[i] = 1 - ((1/sobl_smpl_size * np.sum([f_A[j] * (f_A[j] - f_A_B_i[j]) for j in range(sobl_smpl_size)])) / denominator)
+        stis[i] = (1/sobl_smpl_size * np.sum([f_A[j] * (f_A[j] - f_A_B_i[j]) for j in range(sobl_smpl_size)])) / denominator
 
     print('S:')
     print([f'{sis:.2E}' for sis in ssis])
@@ -304,8 +302,6 @@ def sobol_algorithm(metric, narrow_range, sobl_smpl_size):
     plt.savefig(sobl_figr_name, bbox_inches='tight')
 
     plt.close(figr)
-
-    print(f"optn_args.length_ln_0_values: {optn_args.length_ln_0_values}")
 
     return
 
@@ -427,19 +423,52 @@ def get_objv_fntn_vlue_mprg(args):
     return
 
 
-def NSE(sim_dis, obs_dis):
+def obj_function_by_NSE(sim_dis, obs_dis):
     # obs are the "true" values, sim is our model output
     mean_obs_dis = np.mean(obs_dis)
-    return 1 - (np.sum((obs_dis - sim_dis) ** 2)) / (np.sum((obs_dis - mean_obs_dis) ** 2))
+    # Objective function is 1 - NSE(...)
+    return (np.sum((obs_dis - sim_dis) ** 2)) / (np.sum((obs_dis - mean_obs_dis) ** 2))
 
-def LnNSE(sim_dis, obs_dis):
+
+# Global variable
+count_zeros = []
+mean_count_zeros = 0
+
+def obj_function_by_LnNSE(sim_dis, obs_dis):
+
+    global count_zeros
+    zero_count = np.sum(sim_dis == 0)
+    count_zeros.append(zero_count)
+    mean_count_zeros = np.mean(count_zeros)
+    print(f"Mean count of zeros: {mean_count_zeros} of total {len(sim_dis)}")
+
     sim_dis[sim_dis <= 0] = 0.00001
     obs_dis[obs_dis <= 0] = 0.00001
     ln_sim_dis = np.log(sim_dis)
     ln_obs_dis = np.log(obs_dis)
     mean_ln_obs_dis = np.mean(ln_obs_dis)
-    LnNSE_value = 1 - (np.sum((ln_obs_dis - ln_sim_dis) ** 2)) / (np.sum((ln_obs_dis - mean_ln_obs_dis) ** 2))
-    return LnNSE_value
+    # Objective function is 1 - LnNSE(...)
+    obj_func_value = (np.sum((ln_obs_dis - ln_sim_dis) ** 2)) / (np.sum((ln_obs_dis - mean_ln_obs_dis) ** 2))
+    return obj_func_value
+
+def obj_function_by_LnNSE_random_pen(sim_dis, obs_dis):
+
+    global count_zeros
+    zero_count = np.sum(sim_dis == 0)
+    count_zeros.append(zero_count)
+    mean_count_zeros = np.mean(count_zeros)
+    print(f"Mean count of zeros: {mean_count_zeros} of total {len(sim_dis)}")
+
+    for i in range(len(sim_dis)):
+        if sim_dis[i] == 0:
+            sim_dis[i] = 10**(- np.random.uniform(1, 7))
+    obs_dis[obs_dis <= 0] = 0.00001 #! shouldnt be necessary
+    ln_sim_dis = np.log(sim_dis)
+    ln_obs_dis = np.log(obs_dis)
+    mean_ln_obs_dis = np.mean(ln_obs_dis)
+    # Objective function is 1 - LnNSE(...)
+    obj_func_value = (np.sum((ln_obs_dis - ln_sim_dis) ** 2)) / (np.sum((ln_obs_dis - mean_ln_obs_dis) ** 2))
+    return obj_func_value
 
 def get_objv_fntn_vlue(prms, args):
 
@@ -452,9 +481,11 @@ def get_objv_fntn_vlue(prms, args):
     diss = modl_objt.get_discharge()[args.take_idxs]
 
     if args.metric == 'NSE':
-        objv_fntn_vlue = NSE(sim_dis=diss, obs_dis=diso)
+        objv_fntn_vlue = obj_function_by_NSE(sim_dis=diss, obs_dis=diso)
     elif args.metric == 'LnNSE':
-        objv_fntn_vlue = LnNSE(sim_dis=diss, obs_dis=diso)
+        objv_fntn_vlue = obj_function_by_LnNSE(sim_dis=diss, obs_dis=diso)
+    elif args.metric == 'LnNSE-random_pen':
+        objv_fntn_vlue = obj_function_by_LnNSE_random_pen(sim_dis=diss, obs_dis=diso)
     else:
         raise ValueError("Invalid metric")
 
