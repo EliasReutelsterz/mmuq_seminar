@@ -155,7 +155,7 @@ def perturb_inputs(num: float = 2000):
         ppts.append(perturbation_factor * ref_ppt)
     return ref_tem, np.array(tems), ref_ppt, np.array(ppts), perturbation_factors
 
-def run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt):
+def run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt, maxiter_differential_evolution=20):
     ref_params = opt_prms
     metric = NSE
     recalib_params = []
@@ -166,7 +166,7 @@ def run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt):
         diso = get_diso() # Observed discharge
         result = differential_evolution(func=objective_function,
                                         bounds=list(bounds.values()),
-                                        maxiter=20, #! maybe adjust maxiter
+                                        maxiter=maxiter_differential_evolution,
                                         polish=False,
                                         x0=ref_params,
                                         args=(diso, modl_objt, metric))
@@ -180,4 +180,24 @@ def run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt):
     ref_obj_value = objective_function(ref_params, diso, modl_objt, efficieny_metric=NSE)
 
     return np.array(recalib_params), np.array(recalib_obj_values), ref_params, ref_obj_value 
-        
+
+
+def run_model_with_perturbed_inputs_save_results():
+    maxiter_differential_evolution=20
+    num = 2000 #! later 2000
+
+    ref_tem, tems, ref_ppt, ppts, perturbation_factors = perturb_inputs(num=num)
+    x_labels = pd.read_csv(r'time_series___24163005.csv', sep=';', index_col=0)
+    x_labels.index = pd.to_datetime(x_labels.index, format='%Y-%m-%d-%H')
+    recalib_params, recalib_obj_values, ref_params, ref_obj_value = run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt, maxiter_differential_evolution)
+    script_directory = os.path.dirname(os.path.abspath(__file__))
+    save_dir = os.path.join(script_directory, "assignment4_data")
+    os.makedirs(save_dir, exist_ok=True)
+    np.save(os.path.join(save_dir, "recalib_params.npy"), recalib_params)
+    np.save(os.path.join(save_dir, "recalib_obj_values.npy"), recalib_obj_values)
+    np.save(os.path.join(save_dir, "ref_params.npy"), ref_params)
+    np.save(os.path.join(save_dir, "ref_obj_value.npy"), ref_obj_value)
+    np.save(os.path.join(save_dir, "perturbation_factors.npy"), perturbation_factors)
+    np.save(os.path.join(save_dir, 'tems.npy'), tems)
+    np.save(os.path.join(save_dir, 'ppts.npy'), ppts)
+    print("Results saved successfully")
