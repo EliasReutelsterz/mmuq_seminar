@@ -140,7 +140,6 @@ def get_diso():
 
 def perturb_inputs(num: float = 2000):
     # diso = get_diso() # Observed discharge
-    perturbation_factors = np.random.uniform(0.75, 1.25, num)
     main_dir = Path(r'/Users/elias/Desktop/HWS24/MMUQ Seminar/time_series__24163005')
     os.chdir(main_dir)
     inp_dfe = pd.read_csv(r'time_series___24163005.csv', sep=';', index_col=0)
@@ -150,10 +149,18 @@ def perturb_inputs(num: float = 2000):
 
     tems = []
     ppts = []
-    for perturbation_factor in perturbation_factors:
-        tems.append(perturbation_factor * ref_tem)
-        ppts.append(perturbation_factor * ref_ppt)
-    return ref_tem, np.array(tems), ref_ppt, np.array(ppts), perturbation_factors
+
+    tems_perturbation_factors = np.zeros((num, ref_tem.shape[0]))
+    ppts_perturbation_factors = np.zeros((num, ref_tem.shape[0]))
+
+    for i in range(num):
+        tems_perturbation_factors[i] = np.random.uniform(-2, 2, ref_tem.shape[0])
+        tems.append(ref_tem + tems_perturbation_factors[i])
+
+        ppts_perturbation_factors[i] = np.random.uniform(0.75, 1.25, ref_ppt.shape[0])
+        ppts.append(ref_ppt * ppts_perturbation_factors[i])
+
+    return ref_tem, np.array(tems), ref_ppt, np.array(ppts), tems_perturbation_factors, ppts_perturbation_factors
 
 def run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt, maxiter_differential_evolution=20):
     ref_params = opt_prms
@@ -183,10 +190,12 @@ def run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt, maxiter_differ
 
 
 def run_model_with_perturbed_inputs_save_results():
-    maxiter_differential_evolution=20
-    num = 2000 #! later 2000
 
-    ref_tem, tems, ref_ppt, ppts, perturbation_factors = perturb_inputs(num=num)
+    maxiter_differential_evolution=100 #! 100 next time
+    num = 2000 #! 2000 next time
+    # 50 and 2000 take about 5 hours to run
+
+    ref_tem, tems, ref_ppt, ppts, tems_perturbation_factors, ppts_perturbation_factors = perturb_inputs(num=num)
     x_labels = pd.read_csv(r'time_series___24163005.csv', sep=';', index_col=0)
     x_labels.index = pd.to_datetime(x_labels.index, format='%Y-%m-%d-%H')
     recalib_params, recalib_obj_values, ref_params, ref_obj_value = run_model_with_perturbed_inputs(tems, ppts, ref_tem, ref_ppt, maxiter_differential_evolution)
@@ -197,7 +206,8 @@ def run_model_with_perturbed_inputs_save_results():
     np.save(os.path.join(save_dir, "recalib_obj_values.npy"), recalib_obj_values)
     np.save(os.path.join(save_dir, "ref_params.npy"), ref_params)
     np.save(os.path.join(save_dir, "ref_obj_value.npy"), ref_obj_value)
-    np.save(os.path.join(save_dir, "perturbation_factors.npy"), perturbation_factors)
+    np.save(os.path.join(save_dir, "tems_perturbation_factors.npy"), tems_perturbation_factors)
+    np.save(os.path.join(save_dir, "ppts_perturbation_factors.npy"), ppts_perturbation_factors)
     np.save(os.path.join(save_dir, 'tems.npy'), tems)
     np.save(os.path.join(save_dir, 'ppts.npy'), ppts)
     print("Results saved successfully")
